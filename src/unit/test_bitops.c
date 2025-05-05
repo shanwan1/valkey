@@ -10,6 +10,7 @@ extern long long popcountScalar(void *s, long count);
 #ifdef HAVE_AVX2
 extern long long popcountAVX2(void *s, long count);
 #endif
+extern long long popcountAVX512(void *s, long count);
 
 static long long bitcount(void *s, long count) {
     long long bits = 0;
@@ -40,7 +41,21 @@ static int test_case(const char *msg, int size) {
         long long ret_avx2 = popcountAVX2(buf, size);
         TEST_ASSERT_MESSAGE(msg, expect == ret_avx2);
 #endif
+        long long ret_avx512 = popcountAVX512(buf, size);
+        /*printf("buf: ");
+        for (int i = 0; i < size; i++) {
+            printf("%02x ", buf[i]);
+        }
+        printf("\n");
+        printf("ret_avx512: %lld\n", ret_avx512);
+        printf("expect: %lld\n", expect);*/
+        TEST_ASSERT_MESSAGE(msg, expect == ret_avx512);
     }
+
+    /*uint8_t testbuf[2] = {0x69, 0x66};
+    long long ret_avx512 = popcountAVX512(testbuf, 2);
+    long long expect = bitcount(testbuf, 2);
+    printf("0x6966, ret_avx512: %lld, expect: %lld\n", ret_avx512, expect);*/
 
     return 0;
 }
@@ -69,6 +84,10 @@ int test_popcount(int argc, char **argv, int flags) {
     TEST_CASE("Popcount(Part A + Part C)", 8 * 32 * 11 + 7);
     TEST_CASE("Popcount(Part A + Part B + Part C)", 8 * 32 * 3 + 3 * 32 + 5);
     TEST_CASE("Popcount(Corner case)", 0);
+    
+    TEST_CASE("Popcountavx512(Part A)", 64 * 2);
+    TEST_CASE("Popcountavx512(Part B)", 2);
+    TEST_CASE("Popcountavx512(Part A + Part B)", 64 * 2 + 2);
 #undef TEST_CASE
 
     return 0;

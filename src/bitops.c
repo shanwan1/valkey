@@ -48,6 +48,36 @@ static const unsigned char bitsinbyte[256] = {
     5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6,
     6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8};
 
+
+long long popcountAVX512(void *s, long count) {
+    const size_t chunks = count / 64;
+    uint8_t *ptr = (uint8_t *)s;
+    const uint8_t *end = ptr + count;
+
+    __m512i accumulator = _mm512_setzero_si512();
+    for (size_t i = 0; i < chunks; i++, ptr += 64)
+    {
+        const __m512i v = _mm512_loadu_si512((const __m512i *)ptr);
+        const __m512i p = _mm512_popcnt_epi64(v);
+        accumulator = _mm512_add_epi64(accumulator, p);
+    }
+
+    if (ptr < end)
+    {
+        size_t remaining = end - ptr;
+        uint8_t tail[64] = {0};
+        memcpy(tail, ptr, remaining);
+        //printf("remaining: %zu\n", remaining);
+        const __m512i v = _mm512_loadu_si512((const __m512i *)tail);
+        //printf("v: %llx\n", _mm512_reduce_add_epi64(v));
+        const __m512i p = _mm512_popcnt_epi64(v);
+        //printf("p: %llx\n", _mm512_reduce_add_epi64(p));
+        accumulator = _mm512_add_epi64(accumulator, p);
+    }
+
+    return _mm512_reduce_add_epi64(accumulator);
+}
+
 #ifdef HAVE_AVX2
 /* The SIMD version of popcount enhances performance through parallel lookup tables which is based on the following article:
  * https://arxiv.org/pdf/1611.07612 */
@@ -195,7 +225,9 @@ long long serverPopcount(void *s, long count) {
     /* If length of s >= 256 bits and the CPU supports AVX2,
      * we prefer to use the SIMD version */
     if (count >= 32) {
-        return popcountAVX2(s, count);
+	//return popcountAVX2(s, count);
+        //return popcountScalar(s, count);
+        return popcountAVX512(s, count);
     }
 #endif
     return popcountScalar(s, count);
@@ -1253,7 +1285,6 @@ void bitfieldGeneric(client *c, int flags) {
         }
     }
 
-    initDeferredReplyBuffer(c);
     addReplyArrayLen(c, numops);
 
     /* Actually process the operations. */
@@ -1365,7 +1396,6 @@ void bitfieldGeneric(client *c, int flags) {
         notifyKeyspaceEvent(NOTIFY_STRING, "setbit", c->argv[1], c->db->id);
         server.dirty += changes;
     }
-    commitDeferredReplyBuffer(c, 1);
     zfree(ops);
 }
 
