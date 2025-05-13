@@ -274,12 +274,12 @@ long long serverPopcount(void *s, long count) {
     } else {
         return popcountAVX2(s, count);
     }
-    
+
     /* If length of s >= 256 bits and the CPU supports AVX2,
      * we prefer to use the SIMD version */
-    if (count >= 32) {
+    /*if (count >= 32) {
         return popcountAVX2(s, count);
-    }
+    }*/
 #endif
 #ifdef __aarch64__
     if (count >= 16) {
